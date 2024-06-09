@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+import os
+from openai import OpenAI
+from rich.console import Console
+from rich.markdown import Markdown
+import argparse
+
+parser = argparse.ArgumentParser(
+                    prog='GPT assistant',
+                    description='ChatGPT assistant.',
+                    epilog='assistant')
+parser.add_argument("-m", "--message", help="send a single message to the assistant")
+parser.add_argument("-i", "--image", help="Generates an image from a text request")
+
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"),)
+console = Console()
+model = os.environ.get("OPENAI_MODEL")
+
+def generateImage():
+    print("Generating..")
+    response = client.images.generate(
+        model="dall-e-3",
+        prompt=args.image,
+        size="1024x1024",
+        quality="standard",
+        n=1,
+    )
+    image_url = response.data[0].url
+    image_md = Markdown(f"![{args.image}]({image_url})")
+    console.print(image_md)
+
+
+def streamResponse():
+    rawMessage = ""
+    messages = []
+    while(True and rawMessage != "q"):
+        answer = ""
+        if args.message == None:
+            rawMessage = input("message: ")
+        if rawMessage != "q":
+            messages.append({"role": "user", "content": rawMessage if args.message == None else args.message})
+            stream = client.chat.completions.create(
+                model=model if model != None or "" else "gpt-3.5-turbo",
+                messages=messages,
+                stream=True,
+            )
+            for chunk in stream:
+                answer += chunk.choices[0].delta.content or ""
+                #print(chunk.choices[0].delta.content or "", end="")
+
+            user_md = Markdown(f"***user***: {rawMessage if args.message == None else args.message}")
+            answer_md = Markdown(f"***assistant***: \n{answer}")
+            messages.append({"role": "system", "content": answer})
+            console.print(user_md)
+            console.print(answer_md)
+            if args.message:
+                break
+
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    os.system("clear")
+    if(args.message):
+        print("Generating..")
+    if args.image != None:
+        generateImage()
+        exit()
+    streamResponse()
